@@ -1,0 +1,14 @@
+Version 0.02:	made the plugins compile under AIX:
+	- renamed fh_len to fh_length in a few places because fh_len is a
+	  #define macro in AIX
+	- zero out the getaddrinfo hints structure in both main's
+	- adjust printf (%lld) to data type (long long)
+	- changed Makefiles to always use gcc and -g
+	- some typedefs depending on _AIX
+	- use &rpc_createerr on AIX which doesn't have get_rpc_createerr
+	- include sys/types.h and stdlib.h where appropriate
+	- use xdr_[u_]hyper instead of missing xdr_[u_]quad
+	- use xdr_int instead of xdr_long for 32-bit entities
+	- bump version to 0.02
+
+Version 0.01:	first released version

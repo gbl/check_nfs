@@ -1,0 +1,7 @@
+The stuff in include and src is taken from the nfsreplay library,
+which is available from http://nfsreplay.sourceforge.net and 
+http://www.gelato.unsw.edu.au/IA64wiki/libnfsclient, and licensed
+under the GPLv2.
+
+It is Copyright (C) 2007 Shehjar Tikoo, <shehjart@gelato.unsw.edu.au>.
+
