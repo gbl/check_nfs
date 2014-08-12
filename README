@@ -3,6 +3,11 @@ suid root (chown root check_nfs*; chmod 4750 check_nfs*). This is because
 NFS servers often disallow mount requests from non-privileged ports, and
 the plugins need root rights to bind to a privileged port when mounting.
 
+On linux, instead of setting the suid bit, you can also give the
+cap_net_bind_service capability instead of setting the suid bit:
+	setcap cap_net_bind_service+ep check_nfs
+	setcap cap_net_bind_service+ep check_nfs_file
+
 Usage:
 	check_nfs <server> <share> <warn> <crit>
 	e.g.
