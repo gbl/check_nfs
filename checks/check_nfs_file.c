@@ -155,15 +155,33 @@ int main(int argc, char *argv[])
 	int err;
 	enum clnt_stat stat;
 	nfs_ctx *ctx = NULL;
+	char *progname=argv[0];
+	int fullpath=0;
+	int silent=0;
 
 	LOOKUP3args largs;
 	READ3args read;
+
+	while (argc>1 && argv[1][0] == '-') {
+		if (argv[1][1] == 'p') {
+			fullpath=1;
+			argc--;
+			argv++;
+		} else if (argv[1][1] == 's') {
+			silent=1;
+			argc--;
+			argv++;
+		}
+	}
+
+	if (fullpath==0 &&  strrchr(progname, '/')!=NULL)
+		progname=strrchr(progname, '/')+1;
 
 	if(argc < 4) {
 		printf("%s UNKNOWN: Not enough arguments\n"
 			"Test if a file can be read via NFS\n"
 			"USAGE: %s <server> <remote_dir> <filename>\n",
-			argv[0], argv[0]);
+			progname, progname);
 		return 3;
 	}
 
@@ -173,13 +191,13 @@ int main(int argc, char *argv[])
 
 	if ((err = getaddrinfo(argv[1], NULL, &hints, &srv_addr)) != 0) {
 		printf("%s CRITICAL: Cannot resolve name: %s: %s\n",
-				argv[0], argv[1], gai_strerror(err));
+				progname, argv[1], gai_strerror(err));
 		exit(2);
 	}
 
 	ctx = nfs_init((struct sockaddr_in *)srv_addr->ai_addr, IPPROTO_TCP, 0);
 	if (ctx == NULL) {
-		printf("%s CRITICAL: Cant init nfs context\n", argv[0]);
+		printf("%s CRITICAL: Cant init nfs context\n", progname);
 		exit(2);
 	}
 
@@ -188,11 +206,11 @@ int main(int argc, char *argv[])
 	stat = mount3_mnt(&argv[2], ctx, nfs_mnt_cb, NULL);
 	if (stat == RPC_SUCCESS) {
 	} else {
-		printf("%s CRITICAL: Could not send NFS MOUNT call\n", argv[0]);
+		printf("%s CRITICAL: Could not send NFS MOUNT call\n", progname);
 		exit(2);
 	}
 	if (retcode!=0) {
-		printf("%s CRITICAL: %s\n", argv[0], errmsg);
+		printf("%s CRITICAL: %s\n", progname, errmsg);
 		exit(retcode);
 	}
 
@@ -205,7 +223,7 @@ int main(int argc, char *argv[])
 	if (stat == RPC_SUCCESS) {
 		// fprintf(stderr, "NFS LOOKUP Call sent successfully\n");
 	} else {
-		printf("%s CRITICAL: Could not send NFS LOOKUP call\n", argv[0]);
+		printf("%s CRITICAL: Could not send NFS LOOKUP call\n", progname);
 		exit(2);
 	}
 
@@ -213,7 +231,7 @@ int main(int argc, char *argv[])
 	nfs_complete(ctx, RPC_BLOCKING_WAIT);
 
 	if (retcode!=0) {
-		printf("%s CRITICAL: %s\n", argv[0], errmsg);
+		printf("%s CRITICAL: %s\n", progname, errmsg);
 		exit(retcode);
 	}
 
@@ -226,17 +244,20 @@ int main(int argc, char *argv[])
 	if (stat == RPC_SUCCESS) {
 		// fprintf(stderr, "NFS READ Call sent successfully\n");
 	} else {
-		printf("%s CRITICAL: Could not send NFS READ call\n", argv[0]);
+		printf("%s CRITICAL: Could not send NFS READ call\n", progname);
 		exit(2);
 	}
 
 	nfs_complete(ctx, RPC_BLOCKING_WAIT);
 	if (retcode!=0) {
-		printf("%s CRITICAL: %s\n", argv[0], errmsg);
+		printf("%s CRITICAL: %s\n", progname, errmsg);
 		exit(retcode);
 	}
 
-	printf("%s OK: got %s\n", argv[0], errmsg);
+	printf("%s OK", progname);
+	if (!silent)
+		printf(": got %s", errmsg);
+	putchar('\n');
 
 	return 0;
 }
