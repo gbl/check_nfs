@@ -1,3 +1,9 @@
+Version 0.03:
+	- added the -u switch to allow output unit specification
+	- Timeout after 5 seconds, added the -a switch to change the timeout
+	- removed path name from output; added -p switch to put it back in
+	- bumped version, added copyright year 2016
+
 Version 0.02:	made the plugins compile under AIX:
 	- renamed fh_len to fh_length in a few places because fh_len is a
 	  #define macro in AIX

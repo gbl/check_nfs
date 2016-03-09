@@ -1,5 +1,5 @@
 CFLAGS=-g
-CC=gcc
+# CC=gcc -m32
 OBJECTS= clnt_tcp_nb.o hash_functions.o hash_table.o mount3.o nfs3.o \
 	nfs3_xdr.o nfsclient.o 
 

@@ -11,7 +11,7 @@ clean:
 PROGRAM=check_nfs
 HOME=/home/gbl
 PUBLISHDIR=${HOME}/www.guntram.de/nagiosbinaries
-VERSION=0.02
+VERSION=0.03
 
 publish: clean
 	mkdir -p ${PUBLISHDIR}/${PROGRAM}

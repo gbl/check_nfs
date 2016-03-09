@@ -1,5 +1,7 @@
 CFLAGS=-g
 CC=gcc
+# Linux only:
+# CFLAGS=-g -m32
 # Solaris only:
 # LDFLAGS=-lnsl -lsocket
 all:	check_nfs check_nfs_file

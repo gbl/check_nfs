@@ -1,7 +1,7 @@
 /*
  *    Nagios plugin to check space on an NFS filesystem without having to mount.
  *
- *    Copyright (C) 2011 Guntram Blohm, <gbl@bso2001.com>.
+ *    Copyright (C) 2011-2016 Guntram Blohm, <nagios1@guntram.de>.
  *
  *    This program is free software; you can redistribute it and/or modify
  *    it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@
 #include <rpc/rpc.h>
 #include <stdio.h>
 #include <sys/socket.h>
+#include <sys/signal.h>
 #include <netdb.h>
 #include <errno.h>
 #include <unistd.h>
@@ -39,6 +40,7 @@ fhandle3 mntfh;
 
 int exitcode=0;
 char *errmsg=NULL;
+char *progname;
 
 long long tbytes, fbytes, abytes;
 long long argtonum(char *str, long long ref);
@@ -107,6 +109,10 @@ void nfs_mnt_cb(void *msg, int len, void *priv_ctx)
 	return;
 }
 
+void timeout(int signal) {
+	printf("%s CRITICAL: timeout\n", progname);
+	exit(2);
+}
 
 int main(int argc, char *argv[])
 {
@@ -115,15 +121,80 @@ int main(int argc, char *argv[])
 	enum clnt_stat stat;
 	nfs_ctx *ctx = NULL;
 	long long warn, crit;
+	char *unitstr="", *perfunitstr="";
+	unsigned long long divisor=1;
+	unsigned long long perfdivisor=1;
+	int fullpath=0;
+	progname=argv[0];
+	char option;
+	int alarmtime=5;
 
 	FSSTAT3args fs;
+
+	while (argc>1 && argv[1][0] == '-') {
+		if (tolower(argv[1][1]) == 'u') {
+			option=argv[1][1];
+			if (argv[1][2]) {
+				unitstr=argv[1]+2;
+				argc--; argv++;
+			} else if (argc>2) {
+				unitstr=argv[2];
+				argc-=2; argv+=2;
+			}
+			if (!strncasecmp(unitstr, "ki", 2)) {
+				divisor=1024LL;
+			} else if (*unitstr=='k' || *unitstr=='K') {
+				divisor=1000LL;
+			} else if (!strncasecmp(unitstr, "mi", 2)) {
+				divisor=1024LL*1024;
+			} else if (*unitstr=='m' || *unitstr=='M') {
+				divisor=1000LL*1000;
+			} else if (!strncasecmp(unitstr, "gi", 2)) {
+				divisor=1024LL*1024LL*1024LL;
+			} else if (*unitstr=='g' || *unitstr=='G') {
+				divisor=1000LL*1000LL*1000LL;
+			} else if (!strncasecmp(unitstr, "ti", 2)) {
+				divisor=1024LL*1024LL*1024LL*1024LL;
+			} else if (*unitstr=='t' || *unitstr=='T') {
+				divisor=1000LL*1000LL*1000LL*1000LL;
+			} else if (!strncasecmp(unitstr, "pi", 2)) {
+				divisor=1024LL*1024LL*1024LL*1024LL*1024LL;
+			} else if (*unitstr=='p' || *unitstr=='P') {
+				divisor=1000LL*1000LL*1000LL*1000LL*1000LL;
+			}
+			if (option=='U') {
+				perfdivisor=divisor;
+				perfunitstr=unitstr;
+			}
+		} else if (argv[1][1] == 'p') {
+			fullpath=1;
+			argc--;
+			argv++;
+		} else if (argv[1][1] == 'a') {
+			alarmtime=atoi(argv[2]);
+			argc-=2;
+			argv+=2;
+		} else {
+			printf("%s UNKNOWN: bad argument: %c\n",
+				progname, argv[1][1]);
+			exit(3);
+		}
+
+	}
+	if (fullpath==0 &&  strrchr(progname, '/')!=NULL)
+		progname=strrchr(progname, '/')+1;
 
 	if(argc < 4) {
 		printf("%s UNKNOWN: Not enough arguments\n"
 			"Check free space on an NFS directory\n"
-			"USAGE: %s <server> <remote_mountpoint> <w> <c>\n",
-			argv[0], argv[0]);
+			"USAGE: %s [-U perfunit] [-u unit] <server> <remote_mountpoint> <w> <c>\n",
+			progname, progname);
 		return 3;
+	}
+
+	if (alarmtime!=0) {
+		signal(SIGALRM, timeout);
+		alarm(alarmtime);
 	}
 
 	/* First resolve server name */
@@ -132,13 +203,13 @@ int main(int argc, char *argv[])
 
 	if((err = getaddrinfo(argv[1], NULL, &hints, &srv_addr)) != 0) {
 		printf("%s CRITICAL: Cannot resolve name: %s: %s\n",
-				argv[0], argv[1], gai_strerror(err));
+				progname, argv[1], gai_strerror(err));
 		exit(2);
 	}
 	
 	ctx = nfs_init((struct sockaddr_in *)srv_addr->ai_addr, IPPROTO_TCP, 0);
 	if(ctx == NULL) {
-		printf("%s CRITICAL:  Cant init nfs context\n", argv[0]);
+		printf("%s CRITICAL:  Cant init nfs context\n", progname);
 		exit(2);
 	}
 
@@ -148,7 +219,7 @@ int main(int argc, char *argv[])
 	if (stat == RPC_SUCCESS && exitcode==0)
 		;
 	else {
-		printf("%s CRITICAL: %s\n", argv[0], errmsg);
+		printf("%s CRITICAL: %s\n", progname, errmsg);
 		exit(2);
 	}
 
@@ -158,13 +229,13 @@ int main(int argc, char *argv[])
 	if (stat == RPC_SUCCESS && exitcode==0)
 		;
 	else {
-		printf("%s CRITICAL: Could not send NFS FSSTAT call\n", argv[0]);
+		printf("%s CRITICAL: Could not send NFS FSSTAT call\n", progname);
 		exit(2);
 	}
 
 	nfs_complete(ctx, RPC_BLOCKING_WAIT);
 	if (exitcode) {
-		printf("%s CRITICAL: %s\n", argv[0], errmsg);
+		printf("%s CRITICAL: %s\n", progname, errmsg);
 		exit(2);
 	}
 
@@ -172,27 +243,27 @@ int main(int argc, char *argv[])
 	crit=argtonum(argv[4], tbytes);
 
 	if (abytes<crit) {
-		printf("%s CRITICAL: only %ld of %ld bytes free (%ld%%)"
-			"|free=%ld,%ld,%ld,%ld,%ld\n",
-			argv[0],
-			(long long)abytes, (long long)tbytes, (long long)100*abytes/tbytes,
-			(long long)abytes, (long long)warn, (long long)crit, 0L, (long long)tbytes
+		printf("%s CRITICAL: only %lld%s of %lld%s bytes free (%lld%%)"
+			"|free=%lld%s,%lld,%lld,%lld,%lld\n",
+			progname,
+			(long long)abytes/divisor, unitstr, (long long)tbytes/divisor, unitstr, (long long)100*abytes/tbytes,
+			(long long)abytes/perfdivisor, perfunitstr, (long long)warn/perfdivisor, (long long)crit/perfdivisor, 0LL, (long long)tbytes/perfdivisor
 			);
 		exit(2);
 	} else if (abytes<warn) {
-		printf("%s WARNING: only %ld of %ld bytes free (%ld%%)"
-			"|free=%ld,%ld,%ld,%ld,%ld\n",
-			argv[0],
-			(long long)abytes, (long long)tbytes, (long long)100*abytes/tbytes,
-			(long long)abytes, (long long)warn, (long long)crit, 0L, (long long)tbytes
+		printf("%s WARNING: only %lld%s of %lld%s bytes free (%lld%%)"
+			"|free=%lld%s,%lld,%lld,%lld,%lld\n",
+			progname,
+			(long long)abytes/divisor, unitstr, (long long)tbytes/divisor, unitstr, (long long)100*abytes/tbytes,
+			(long long)abytes/perfdivisor, perfunitstr, (long long)warn/perfdivisor, (long long)crit/perfdivisor, 0LL, (long long)tbytes/perfdivisor
 			);
 		exit(1);
 	} else {
-		printf("%s OK: %lld of %lld bytes free (%lld%%)"
-			"|free=%lld,%lld,%lld,%ld,%lld\n",
-			argv[0],
-			(long long)abytes, (long long)tbytes, (long long)100*abytes/tbytes,
-			(long long)abytes, (long long)warn, (long long)crit, 0L, (long long)tbytes
+		printf("%s OK: %lld%s of %lld%s bytes free (%lld%%)"
+			"|free=%lld%s,%lld,%lld,%lld,%lld\n",
+			progname,
+			(long long)abytes/divisor, unitstr, (long long)tbytes/divisor, unitstr, (long long)100*abytes/tbytes,
+			(long long)abytes/perfdivisor, perfunitstr, (long long)warn/perfdivisor, (long long)crit/perfdivisor, 0LL, (long long)tbytes/perfdivisor
 			);
 		exit(0);
 	}
@@ -211,9 +282,9 @@ long long argtonum(char *str, long long ref) {
 		} else if (*str=='G' || *str=='g') {
 			result*=1024L*1024*1024; break;
 		} else if (*str=='T' || *str=='t') {
-			result*=1024L*1024*1024*1024; break;
+			result*=1024LL*1024*1024*1024; break;
 		} else if (*str=='P' || *str=='p') {
-			result*=1024L*1024*1024*1024*1024; break;
+			result*=1024LL*1024*1024*1024*1024; break;
 		} else if (*str=='%') {
 			result=result*ref/100; break;
 		} else {
